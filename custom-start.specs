@@ -1,0 +1,2 @@
+*startfile:
+crti.o%s %{!shared:crtbegin.o%s} %{shared:crtbeginS.o%s}

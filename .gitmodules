@@ -1,0 +1,7 @@
+[submodule "meta/hollyhock-3"]
+	path = meta/hollyhock-3
+	url = https://github.com/ClasspadDev/hollyhock-3.git
+	branch = v2.0.0
+[submodule "ugfx"]
+	path = ugfx
+	url = https://github.com/ClasspadDev/ugfx.git

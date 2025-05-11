@@ -1,0 +1,10 @@
+# generated files
+dist/
+obj/
+.cache/
+.deps/
+compile_commands.json
+
+# top level symlinks
+/run.bin
+/run.elf
