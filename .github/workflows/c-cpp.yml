@@ -19,7 +19,7 @@ jobs:
        password: ${{ secrets.github_token }}
 
     steps:
-    - run: apt-get update -y && apt-get upgrade -y && apt-get install -y --no-install-recommencds python3 python-is-python3 && apt-get install -y --reinstall ca-certificates
+    - run: apt-get update -y && apt-get upgrade -y && apt-get install -y --no-install-recommends python3 python-is-python3 && apt-get install -y --reinstall ca-certificates
     - uses: actions/checkout@v4
     - run: make -j
     - uses: actions/upload-artifact@v4
