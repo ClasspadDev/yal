@@ -33,6 +33,7 @@ LIBS:=-L$(SDK_DIR) -lsdk
 
 READELF:=sh4a_nofpueb-elf-readelf
 OBJCOPY:=sh4a_nofpueb-elf-objcopy
+STRIP:=sh4a_nofpueb-elf-strip
 
 PYTHON:=python
 
@@ -43,6 +44,7 @@ $(foreach json, $(ADDRESSES), $(eval $(OUTDIR)/addresses.$(shell $(PYTHON) -c 'i
 
 APP_ELFS := $(VERSIONS:%=$(OUTDIR)/run.%.elf)
 APP_BINS := $(APP_ELFS:.elf=.bin)
+APP_HHKS := $(APP_ELFS:.elf=.adjusted.hh3)
 
 AS_SOURCES:=$(shell find $(SOURCEDIR) -name '*.S' -not -name '*.template.*')
 CC_SOURCES:=$(shell find $(SOURCEDIR) -name '*.c' -not -name '*.template.*') $(GFXSRC)
@@ -56,12 +58,12 @@ NOLTOOBJS := $(foreach obj, $(OBJECTS), $(if $(findstring /nolto/, $(obj)), $(ob
 DEPFILES := $(OBJECTS:$(BUILDDIR)/%.o=$(DEPDIR)/%.d)
 
 bin: $(APP_BINS) Makefile
-
-hhk: $(APP_ELFS) Makefile
+hhk: $(APP_HHKS) Makefile
+elf: $(APP_ELFS) Makefile
 
 overrides: $(OVERRIDES) Makefile
 
-all: bin hhk overrides
+all: bin elf hhk overrides
 .DEFAULT_GOAL := all
 .SECONDARY: # Prevents intermediate files from being deleted
 
@@ -70,15 +72,24 @@ clean:
 
 
 %.bin: %.elf
-	@mkdir -p $(dir $@)
 	$(OBJCOPY) --output-target=binary --set-section-flags .bss=alloc,load,contents,data $^ $@
+
+%.hh3: %.elf
+	$(STRIP) -o $@ $^
 
 $(OUTDIR)/run.%.elf: $(OBJECTS) linker.ld $(BUILDDIR)/addresses.%.o
 	@mkdir -p $(dir $@)
 	$(LD) -T linker.ld -Wl,-Map $@.map -o $@ $(LD_FLAGS) $(filter-out linker.ld, $^) $(LIBS)
 
+$(BUILDDIR)/run.%.adjusted.elf: $(OUTDIR)/run.%.elf
+	@mkdir -p $(dir $@)
+	$(OBJCOPY) --change-addresses +0x20000 $^ $@
 
 $(OUTDIR)/addresses.%.override:
+	@mkdir -p $(dir $@)
+	cp $< $@
+
+$(OUTDIR)/run.%.adjusted.hh3: $(BUILDDIR)/run.%.adjusted.hh3
 	@mkdir -p $(dir $@)
 	cp $< $@
 
@@ -113,6 +124,6 @@ compile_commands.json:
 	#sed -i 's/-m4a-nofpu//' compile_commands.json.tmp
 	mv compile_commands.json.tmp compile_commands.json
 
-.PHONY: bin hhk overrides all clean compile_commands.json
+.PHONY: bin elf hhk overrides all clean compile_commands.json
 
 -include $(DEPFILES)

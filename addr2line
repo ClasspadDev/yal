@@ -1,5 +1,5 @@
 #/bin/sh
 for a in $*
 do
-  sh4a_nofpueb-elf-addr2line -fpi -e run.elf 0x8cfe$a
+  sh4a_nofpueb-elf-addr2line -fpi -e run.elf 0x$a
 done
