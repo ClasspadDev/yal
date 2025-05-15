@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <sdk/calc/calc.h>
 #include <sdk/os/debug.h>
@@ -88,7 +89,9 @@ int main() {
   std::unique_ptr<Executable> choosen;
   {
     std::forward_list<std::unique_ptr<Executable>> list;
-    // discover<BinaryLoader>::run(list);
+    if (std::strcmp(reinterpret_cast<const char *>(addresses),
+                    "2017.0512.1515") == 0) // 2000 aka original hhk2
+      discover<BinaryLoader>::run(list);
     discover<ELFLoader>::run(list);
     choosen = do_gui(list);
   }
