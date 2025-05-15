@@ -1,7 +1,7 @@
 #include "loader.hpp"
-#include "sdk/calc/calc.h"
 #include <cstdint>
 #include <cstdio>
+#include <sdk/calc/calc.h>
 #include <unistd.h>
 
 void BinaryLoader::load() {
@@ -11,7 +11,7 @@ void BinaryLoader::load() {
   // execution_address = load_address in this format
   execution_address = nullptr;
 
-  if (size < 0x10 - 1) {
+  if (size >= 0x10) {
     std::fseek(file, 0x0C, SEEK_SET);
     std::fread(&execution_address, sizeof(execution_address), 1, file);
   }
@@ -25,16 +25,17 @@ void BinaryLoader::load() {
 }
 
 int BinaryLoader::execute() {
-  const auto pathlen = std::char_traits<char>::length(path.get());
+  /*const auto pathlen = std::char_traits<char>::length(path.get());
   auto argv0 = new char[pathlen + 1];
   std::copy_n(path.get(), pathlen, argv0);
   argv0[pathlen] = '\0';
-  char *argv[] = {argv0};
+  char *argv[] = {argv0};*/
   calcExit();
-  auto ret = reinterpret_cast<int (*)(int argc, char **argv, char **envp)>(
-      execution_address)(sizeof(argv) / sizeof(*argv), argv, environ);
+  /*auto ret = reinterpret_cast<int (*)(int argc, char **argv, char **envp)>(
+      execution_address)(sizeof(argv) / sizeof(*argv), argv, environ);*/
+  reinterpret_cast<void (*)()>(execution_address)();
   calcInit();
-  return ret;
+  return 0;
 }
 
 void BinaryLoader::unload() {}
