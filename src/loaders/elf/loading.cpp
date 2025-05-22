@@ -1,4 +1,5 @@
 #include "loader.hpp"
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <elf.h>
@@ -32,6 +33,22 @@ void ELFLoader::load() {
 
     std::memset(reinterpret_cast<void *>(phdr->p_vaddr + phdr->p_filesz), 0,
                 phdr->p_memsz - phdr->p_filesz);
+
+    for (std::size_t i = 0; i < phdr->p_memsz; i += 32)
+      __asm__ volatile("ocbwb @%0" : : "r"(phdr->p_vaddr + i));
+    __asm__ volatile(
+        "ocbwb @%0"
+        :
+        : "r"(reinterpret_cast<void *>(phdr->p_vaddr + phdr->p_memsz - 1)));
+
+    if (phdr->p_flags & PF_X) {
+      for (std::size_t i = 0; i < phdr->p_memsz; i += 32)
+        __asm__ volatile("icbi @%0" : : "r"(phdr->p_vaddr + i));
+      __asm__ volatile(
+          "icbi @%0"
+          :
+          : "r"(reinterpret_cast<void *>(phdr->p_vaddr + phdr->p_memsz - 1)));
+    }
 
     if (phdr->p_vaddr <
             reinterpret_cast<std::uintptr_t>(vram + width * height * 2) &&

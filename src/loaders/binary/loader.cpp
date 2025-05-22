@@ -6,7 +6,7 @@
 
 void BinaryLoader::load() {
   std::fseek(file, 0, SEEK_END);
-  const auto size = std::ftell(file);
+  const size_t size = std::ftell(file);
 
   // execution_address = load_address in this format
   execution_address = nullptr;
@@ -22,6 +22,22 @@ void BinaryLoader::load() {
 
   std::fseek(file, 0, SEEK_SET);
   std::fread(execution_address, size, 1, file);
+  for (std::size_t i = 0; i < size; i += 32) {
+    __asm__ volatile("ocbwb @%0"
+                     :
+                     : "r"(reinterpret_cast<uintptr_t>(execution_address) + i));
+    __asm__ volatile("icbi @%0"
+                     :
+                     : "r"(reinterpret_cast<uintptr_t>(execution_address) + i));
+  }
+  __asm__ volatile(
+      "ocbwb @%0"
+      :
+      : "r"(reinterpret_cast<uintptr_t>(execution_address) + size - 1));
+  __asm__ volatile(
+      "icbi @%0"
+      :
+      : "r"(reinterpret_cast<uintptr_t>(execution_address) + size - 1));
 }
 
 int BinaryLoader::execute() {
