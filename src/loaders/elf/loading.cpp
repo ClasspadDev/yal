@@ -88,8 +88,7 @@ int ELFLoader::execute() {
     calcExit();
   auto ret = reinterpret_cast<int (*)(int argc, char **argv, char **envp)>(
       ehdr->e_entry)(sizeof(argv) / sizeof(*argv), argv, environ);
-  if (!in_vbak)
-    calcInit();
+  calcInit();
 
   return ret;
 }
