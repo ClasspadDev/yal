@@ -9,4 +9,5 @@ public:
 
 private:
   void *execution_address = nullptr;
+  bool in_vram_or_vbak = false;
 };

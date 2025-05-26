@@ -38,6 +38,23 @@ void BinaryLoader::load() {
       "icbi @%0"
       :
       : "r"(reinterpret_cast<uintptr_t>(execution_address) + size - 1));
+
+  in_vram_or_vbak =
+      (size > 0x3fffffff) ||
+      ((((reinterpret_cast<uintptr_t>(execution_address) + size) & 0x3fffffff) >
+        (reinterpret_cast<uintptr_t>(execution_address) & 0x3fffffff))
+           ? ((((reinterpret_cast<uintptr_t>(execution_address) + size) &
+                0x3fffffff) >=
+               (reinterpret_cast<uintptr_t>(vram) & 0x3fffffff)) &&
+              ((reinterpret_cast<uintptr_t>(execution_address) & 0x3fffffff) <
+               ((reinterpret_cast<uintptr_t>(vram) + width * height * 2) &
+                0x3fffffff)))
+           : ((((reinterpret_cast<uintptr_t>(execution_address) + size) &
+                0x3fffffff) <
+               (reinterpret_cast<uintptr_t>(vram) & 0x3fffffff)) &&
+              ((reinterpret_cast<uintptr_t>(execution_address) & 0x3fffffff) >=
+               ((reinterpret_cast<uintptr_t>(vram) + width * height * 2) &
+                0x3fffffff))));
 }
 
 int BinaryLoader::execute() {
@@ -46,7 +63,8 @@ int BinaryLoader::execute() {
   std::copy_n(path.get(), pathlen, argv0);
   argv0[pathlen] = '\0';
   char *argv[] = {argv0};*/
-  calcExit();
+  if (!in_vram_or_vbak)
+    calcExit();
   /*auto ret = reinterpret_cast<int (*)(int argc, char **argv, char **envp)>(
       execution_address)(sizeof(argv) / sizeof(*argv), argv, environ);*/
   reinterpret_cast<void (*)()>(execution_address)();
