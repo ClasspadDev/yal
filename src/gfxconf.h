@@ -77,7 +77,7 @@
 #define GFX_USE_GDISP                                GFXON
 
 //#define GDISP_NEED_AUTOFLUSH                         GFXOFF
-#define GDISP_NEED_TIMERFLUSH                        100
+#define GDISP_NEED_TIMERFLUSH                        150
 //#define GDISP_NEED_VALIDATION                        GFXON
 //#define GDISP_NEED_CLIP                              GFXON
 //#define GDISP_NEED_CIRCLE                            GFXOFF
@@ -162,7 +162,7 @@
 //#define GDISP_DEFAULT_ORIENTATION                    gOrientationLandscape    // If not defined the native hardware orientation is used.
 //#define GDISP_LINEBUF_SIZE                           128
 //#define GDISP_STARTUP_COLOR                          GFX_BLACK
-//#define GDISP_NEED_STARTUP_LOGO                      GFXON
+#define GDISP_NEED_STARTUP_LOGO                      GFXOFF
 
 //#define GDISP_TOTAL_DISPLAYS                         1
 
@@ -290,9 +290,9 @@
 //    #define GINPUT_TOUCH_NOTOUCH                     GFXOFF
     #define GINPUT_TOUCH_NOCALIBRATE                 GFXON
 //    #define GINPUT_TOUCH_NOCALIBRATE_GUI             GFXOFF
-//    #define GINPUT_MOUSE_POLL_PERIOD                 25
-//    #define GINPUT_MOUSE_CLICK_TIME                  300
-//    #define GINPUT_TOUCH_CXTCLICK_TIME               700
+    #define GINPUT_MOUSE_POLL_PERIOD                 100
+    #define GINPUT_MOUSE_CLICK_TIME                  300
+    #define GINPUT_TOUCH_CXTCLICK_TIME               750
 //    #define GINPUT_TOUCH_USER_CALIBRATION_LOAD       GFXOFF
 //    #define GINPUT_TOUCH_USER_CALIBRATION_SAVE       GFXOFF
 //    #define GMOUSE_DRIVER_LIST                       GMOUSEVMT_Win32, GMOUSEVMT_Win32
