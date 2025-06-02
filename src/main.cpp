@@ -26,8 +26,6 @@ void do_override() {
   constexpr char prefix[] = "\\fls0\\addresses.";
   constexpr char suffix[] = ".override"; // incl \0
 
-  // char path[/*preifx: */14 + /*guard: */guard_len + /*suffix: */9 + /*null:
-  // */1] = "addresses."; // VLA is only a C99 feature
   const auto path = reinterpret_cast<char *>(
       alloca(sizeof(prefix) - 1 + guard_len + sizeof(suffix)));
   std::memcpy(path, prefix, sizeof(prefix) - 1);
@@ -42,19 +40,19 @@ void do_override() {
   const auto file_size = std::ftell(fd);
   std::fseek(fd, 0, SEEK_SET);
 
-  const auto guard = reinterpret_cast<char *>(alloca(guard_len + 1));
-  if (std::fread(guard, sizeof(char) * (guard_len + 1), 1, fd) != 1)
+  const auto guard = reinterpret_cast<char *>(alloca(guard_len));
+  if (std::fread(guard, sizeof(char) * (guard_len), 1, fd) != 1)
     throw std::runtime_error("Failed to read guard");
   if (!check_safe_guard(guard))
     throw std::runtime_error("Invalid guard");
 
-  const unsigned long size = file_size - (guard_len + 1) + (addresses_size);
+  const unsigned long size = file_size - (guard_len) + (addresses_size);
   const auto buf = new uint8_t[size];
   if (!buf)
     throw std::runtime_error("Failed to allocate override");
   std::memcpy(buf, addresses, addresses_size);
 
-  const auto bytes_to_read = file_size - (guard_len + 1);
+  const auto bytes_to_read = file_size - guard_len;
   if (std::fread(buf + addresses_size, bytes_to_read, 1, fd) != 1)
     throw std::runtime_error("Failed to read override");
 
