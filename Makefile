@@ -54,6 +54,7 @@ OBJECTS := $(addprefix $(BUILDDIR)/,$(AS_SOURCES:.S=.o)) \
 	$(addprefix $(BUILDDIR)/,$(CXX_SOURCES:.cpp=.o))
 
 NOLTOOBJS := $(foreach obj, $(OBJECTS), $(if $(findstring /nolto/, $(obj)), $(obj)))
+GFXOBJS := $(foreach obj, $(OBJECTS), $(if $(findstring /$(GFXLIB)/, $(obj)), $(obj)))
 
 DEPFILES := $(OBJECTS:$(BUILDDIR)/%.o=$(DEPDIR)/%.d)
 
@@ -94,7 +95,7 @@ $(OUTDIR)/run.%.adjusted.hh3: $(BUILDDIR)/run.%.adjusted.hh3
 	cp $< $@
 
 $(NOLTOOBJS): FUNCTION_FLAGS+=-fno-lto
-$(addprefix $(BUILDDIR)/,$(GFXSRC:.c=.o)): WARNINGS=-Wall -Wextra -Wno-error=incompatible-pointer-types
+$(GFXOBJS): WARNINGS=-Wall -Wextra -Wno-incompatible-pointer-types -Wno-duplicate-decl-specifier -Wno-enum-conversion -Wno-unused-variable
 
 $(BUILDDIR)/%.o: %.S
 	@mkdir -p $(dir $@)

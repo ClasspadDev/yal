@@ -10,14 +10,6 @@
 #include <sys/unistd.h>
 #include <utility>
 
-gTicks gfxSystemTicks() {
-  timeval t;
-  gettimeofday(&t, nullptr);
-  return t.tv_usec;
-}
-
-gTicks gfxMillisecondsToTicks(gDelay ms) { return ms * 1000; }
-
 std::unique_ptr<Executable>
 do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list) {
   gfxInit();
