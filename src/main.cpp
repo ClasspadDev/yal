@@ -97,9 +97,11 @@ int main() {
   if (!choosen)
     return 0;
 
+  calcExit();
   choosen->load();
   auto ret = choosen->execute();
   choosen->unload();
+  calcInit();
 
   return ret;
 }

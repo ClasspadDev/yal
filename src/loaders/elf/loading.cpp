@@ -49,12 +49,6 @@ void ELFLoader::load() {
           :
           : "r"(reinterpret_cast<void *>(phdr->p_vaddr + phdr->p_memsz - 1)));
     }
-
-    if (phdr->p_vaddr <
-            reinterpret_cast<std::uintptr_t>(vram + width * height * 2) &&
-        phdr->p_vaddr + phdr->p_memsz >=
-            reinterpret_cast<std::uintptr_t>(vram + width * height))
-      in_vbak = true;
   }
 }
 
@@ -84,11 +78,8 @@ int ELFLoader::execute() {
   argv0[pathlen] = '\0';
   char *argv[] = {argv0};
 
-  if (!in_vbak)
-    calcExit();
   auto ret = reinterpret_cast<int (*)(int argc, char **argv, char **envp)>(
       ehdr->e_entry)(sizeof(argv) / sizeof(*argv), argv, environ);
-  calcInit();
 
   return ret;
 }

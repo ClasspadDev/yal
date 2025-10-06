@@ -19,7 +19,6 @@ private:
   std::unique_ptr<Elf32_Ehdr> ehdr = nullptr;
   std::unique_ptr<Elf32_Phdr[]> phdrs = nullptr;
   std::unique_ptr<std::forward_list<std::unique_ptr<ELFNotes>>> notes = nullptr;
-  bool in_vbak = false;
 
   void init_ehdr();
   void init_phdrs();
