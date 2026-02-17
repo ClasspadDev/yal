@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../interface.hpp"
 
 class BinaryLoader : public FileBasedExecutable<".bin"> {
@@ -9,5 +11,4 @@ public:
 
 private:
   void *execution_address = nullptr;
-  bool in_vram_or_vbak = false;
 };

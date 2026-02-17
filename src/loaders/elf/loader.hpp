@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../interface.hpp"
 #include "elfnotes.hpp"
 #include <elf.h>
@@ -18,7 +20,7 @@ public:
 private:
   std::unique_ptr<Elf32_Ehdr> ehdr = nullptr;
   std::unique_ptr<Elf32_Phdr[]> phdrs = nullptr;
-  std::unique_ptr<std::forward_list<std::unique_ptr<ELFNotes>>> notes = nullptr;
+  std::unique_ptr<std::forward_list<ELFNotes>> notes = nullptr;
 
   void init_ehdr();
   void init_phdrs();

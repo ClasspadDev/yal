@@ -11,7 +11,7 @@
 static const auto safe_guard = reinterpret_cast<const char *>(0x814fffe0);
 static constexpr std::size_t safe_guard_size = 16;
 
-static inline bool check_safe_guard(const char *const other) {
+static bool check_safe_guard(const char *const other) {
   return std::strncmp(safe_guard, other, safe_guard_size) == 0;
 }
 

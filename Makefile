@@ -18,14 +18,14 @@ DEPFLAGS=-MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 WARNINGS=-Wall -Wextra -Wno-prio-ctor-dtor -pedantic -Werror -pedantic-errors
 INCLUDES=-I$(SDK_DIR)/include $(GFXINC:%=-I%) -I$(SOURCEDIR)
 DEFINES=$(GFXDEFS)
-FUNCTION_FLAGS=-flto=auto -ffat-lto-objects -fno-builtin -ffunction-sections -fdata-sections -gdwarf-5 -Oz
+FUNCTION_FLAGS=-flto=auto -ffat-lto-objects -fno-builtin -ffunction-sections -fdata-sections -gdwarf-5 -O3
 COMMON_FLAGS=$(FUNCTION_FLAGS) $(INCLUDES) $(WARNINGS) $(DEFINES)
 
 CC:=sh4a_nofpueb-elf-gcc
 CC_FLAGS=-std=c23 $(COMMON_FLAGS)
 
 CXX:=sh4a_nofpueb-elf-g++
-CXX_FLAGS=-std=c++20 $(COMMON_FLAGS)
+CXX_FLAGS=-std=c++23 $(COMMON_FLAGS)
 
 LD:=sh4a_nofpueb-elf-g++
 LD_FLAGS:=$(FUNCTION_FLAGS) -Wl,--gc-sections --specs=custom-start.specs
@@ -104,12 +104,12 @@ $(BUILDDIR)/%.o: %.S
 $(BUILDDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir $(DEPDIR)/$<)
-	+$(CC) -c $< -o $@ $(CC_FLAGS) $(DEPFLAGS)
+	$(CC) -c $< -o $@ $(CC_FLAGS) $(DEPFLAGS)
 
 $(BUILDDIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir $(DEPDIR)/$<)
-	+$(CXX) -c $< -o $@ $(CXX_FLAGS) $(DEPFLAGS)
+	$(CXX) -c $< -o $@ $(CXX_FLAGS) $(DEPFLAGS)
 
 $(BUILDDIR)/addresses.%.prep: $(METADIR)/addresses.%.json convert_json.py
 	@mkdir -p $(dir $@)

@@ -11,6 +11,9 @@ void ELFLoader::init_ehdr() {
   if (ehdr)
     return;
 
+  const auto shared = file.acquire();
+  const auto file = shared.get();
+
   ehdr = std::make_unique<Elf32_Ehdr>();
   std::fseek(file, 0, SEEK_SET);
   if (std::fread(ehdr.get(), sizeof(Elf32_Ehdr), 1, file) != 1)
@@ -36,6 +39,9 @@ void ELFLoader::init_phdrs() {
   if (phdrs)
     return;
 
+  const auto shared = file.acquire();
+  const auto file = shared.get();
+
   init_ehdr();
 
   if (ehdr->e_phnum == 0) {
@@ -53,8 +59,8 @@ void ELFLoader::init_phdrs() {
     throw std::runtime_error("Failed to read program headers");
 
   // sanity check
-  for (auto phdr = phdrs.get(); phdr < phdrs.get() + ehdr->e_phnum; phdr++)
-    switch (phdr->p_type) {
+  for (const auto &phdr : std::span(phdrs.get(), ehdr->e_phnum))
+    switch (phdr.p_type) {
     case PT_NULL:
     case PT_LOAD:
     // case PT_DYNAMIC:
@@ -71,23 +77,26 @@ void ELFLoader::init_notes() {
   if (notes)
     return;
 
+  const auto shared = file.acquire();
+  const auto file = shared.get();
+
   init_phdrs();
 
-  notes = std::make_unique<std::forward_list<std::unique_ptr<ELFNotes>>>();
+  notes = std::make_unique<decltype(notes)::element_type>();
 
-  for (auto phdr = phdrs.get(); phdr < phdrs.get() + ehdr->e_phnum; phdr++) {
-    if (phdr->p_type != PT_NOTE)
+  for (const auto &phdr : std::span(phdrs.get(), ehdr->e_phnum)) {
+    if (phdr.p_type != PT_NOTE)
       continue;
-    if (phdr->p_filesz != phdr->p_memsz)
+    if (phdr.p_filesz != phdr.p_memsz)
       throw std::runtime_error("Mismatched note size");
 
-    if (phdr->p_filesz == 0)
+    if (phdr.p_filesz == 0)
       continue;
 
-    if (std::fseek(file, phdr->p_offset, SEEK_SET) != 0)
+    if (std::fseek(file, phdr.p_offset, SEEK_SET) != 0)
       throw std::runtime_error("Failed to seek to note header");
 
-    auto remaining_size = phdr->p_filesz;
+    auto remaining_size = phdr.p_filesz;
 
     while (remaining_size > 0) {
       if (remaining_size < sizeof(Elf32_Nhdr))
@@ -123,12 +132,8 @@ void ELFLoader::init_notes() {
 
       remaining_size -= actual_name_size + actual_desc_size;
 
-      notes->emplace_front(std::make_unique<ELFNotes>(
-          std::unique_ptr<const char[]>(
-              reinterpret_cast<const char *>(name.release())),
-          std::unique_ptr<const std::uint8_t[]>(
-              reinterpret_cast<const std::uint8_t *>(desc.release())),
-          header.n_namesz, header.n_descsz, header.n_type));
+      notes->emplace_front(std::move(name), std::move(desc), header.n_namesz,
+                           header.n_descsz, header.n_type);
     }
   }
 }

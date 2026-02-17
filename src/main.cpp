@@ -9,54 +9,50 @@
 #include "strconv.hpp"
 #include <alloca.h>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <sdk/calc/calc.h>
-#include <sdk/os/debug.h>
-#include <sdk/os/gui.h>
-#include <sdk/os/lcd.h>
 #include <stdexcept>
+#include <string>
+
+using namespace std::string_literals;
 
 void do_override() {
-  const auto guard_len = std::strlen(safe_guard);
+  const size_t guard_len = static_cast<std::decay_t<decltype(addresses)>>(
+                               std::memchr(addresses, 0, addresses_size)) -
+                           addresses;
 
-  constexpr char prefix[] = "\\fls0\\addresses.";
-  constexpr char suffix[] = ".override"; // incl \0
+  const auto path = "\\fls0\\addresses."s +
+                    reinterpret_cast<const char *>(addresses) + ".override";
 
-  const auto path = reinterpret_cast<char *>(
-      alloca(sizeof(prefix) - 1 + guard_len + sizeof(suffix)));
-  std::memcpy(path, prefix, sizeof(prefix) - 1);
-  std::memcpy(path + sizeof(prefix) - 1, safe_guard, guard_len);
-  std::memcpy(path + sizeof(prefix) - 1 + guard_len, suffix, sizeof(suffix));
-
-  const auto fd = std::fopen(path, "rb");
-  if (!fd)
+  const auto file = std::fopen(path.c_str(), "rb");
+  if (!file)
     return;
 
-  std::fseek(fd, 0, SEEK_END);
-  const auto file_size = std::ftell(fd);
-  std::fseek(fd, 0, SEEK_SET);
+  if (std::fseek(file, 0, SEEK_END) != 0)
+    throw std::runtime_error("Failed to seek to end of override");
+  const auto file_size = std::ftell(file);
+  if (std::fseek(file, 0, SEEK_SET) != 0)
+    throw std::runtime_error("Failed to seek to start of override");
 
-  const auto guard = reinterpret_cast<char *>(alloca(guard_len));
-  if (std::fread(guard, sizeof(char) * (guard_len), 1, fd) != 1)
+  const auto guard = static_cast<char *>(alloca(guard_len));
+  if (std::fread(guard, sizeof(char) * guard_len, 1, file) != 1)
     throw std::runtime_error("Failed to read guard");
   if (!check_safe_guard(guard))
     throw std::runtime_error("Invalid guard");
 
-  const unsigned long size = file_size - (guard_len) + (addresses_size);
+  const unsigned long size = file_size - guard_len + addresses_size;
   const auto buf = new uint8_t[size];
   if (!buf)
     throw std::runtime_error("Failed to allocate override");
   std::memcpy(buf, addresses, addresses_size);
 
-  const auto bytes_to_read = file_size - guard_len;
-  if (std::fread(buf + addresses_size, bytes_to_read, 1, fd) != 1)
+  if (std::fread(buf + addresses_size, file_size - guard_len, 1, file) != 1)
     throw std::runtime_error("Failed to read override");
 
-  if (std::fclose(fd) != 0)
+  if (std::fclose(file) != 0)
     throw std::runtime_error("Failed to close override");
 
   if (!relink_sdk(buf, size))
@@ -77,30 +73,28 @@ void do_override() {
     cbuf[sizeof(cbuf) - 1] = '\0';
     setenv("HHK_SYMBOL_TABLE_LEN", cbuf, 1);
   }
-
-  return;
 }
 
 int main() {
   do_override();
 
-  std::unique_ptr<Executable> choosen;
+  std::unique_ptr<Executable> chosen;
   {
     std::forward_list<std::unique_ptr<Executable>> list;
     if (std::strcmp(reinterpret_cast<const char *>(addresses),
                     "2017.0512.1515") == 0) // 2000 aka original hhk2
       discover<BinaryLoader>::run(list);
     discover<ELFLoader>::run(list);
-    choosen = do_gui(list);
+    chosen = do_gui(list);
   }
 
-  if (!choosen)
+  if (!chosen)
     return 0;
 
   calcExit();
-  choosen->load();
-  auto ret = choosen->execute();
-  choosen->unload();
+  chosen->load();
+  const auto ret = chosen->execute();
+  chosen->unload();
   calcInit();
 
   return ret;

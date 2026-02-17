@@ -8,3 +8,6 @@ compile_commands.json
 # top level symlinks
 /run.bin
 /run.elf
+
+# editor stuff
+.idea/

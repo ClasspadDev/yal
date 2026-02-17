@@ -33,13 +33,12 @@ void setupEnvironment() {
 }
 
 void clearLastSymbolMap() {
-  auto env_var = std::getenv("HHK_SYMBOL_TABLE");
+  const auto env_var = std::getenv("HHK_SYMBOL_TABLE");
   if (!env_var)
     return;
-  auto env_var_len = std::strlen(env_var);
-  if (env_var_len != sizeof(std::uintptr_t) * 2)
+  if (std::strlen(env_var) != sizeof(std::uintptr_t) * 2)
     return;
-  auto ptr = std::strtoul(env_var, nullptr, 16);
+  const auto ptr = std::strtoul(env_var, nullptr, 16);
   if (!ptr)
     return;
 
@@ -52,27 +51,6 @@ void clearLastSymbolMap() {
 static jmp_buf jump_buffer;
 static int exit_code;
 
-static _Unwind_Reason_Code unwind_callback(struct _Unwind_Context *context,
-                                           void *ctx) {
-  auto ip = reinterpret_cast<void *>(_Unwind_GetIP(context));
-  auto sp = reinterpret_cast<void *>(_Unwind_GetCFA(context));
-  auto &y = *reinterpret_cast<int *>(ctx);
-  Debug_Printf(5, y++, true, 0, "IP: %p, SP: %p\n", ip, sp);
-  if (y > 20)
-    return _URC_END_OF_STACK;
-  return _URC_NO_REASON;
-}
-static void _custom_terminate() {
-  int y = 3;
-  _Unwind_Backtrace(unwind_callback, &y);
-  LCD_Refresh();
-  Debug_WaitKey();
-  std::exit(EXIT_FAILURE);
-}
-static __attribute__((constructor(10))) void init_unwind() {
-  std::set_terminate(_custom_terminate);
-}
-
 extern "C" void *setup() {
   cas_setup();
   if (setjmp(jump_buffer) != 0) {
@@ -80,7 +58,7 @@ extern "C" void *setup() {
     clearLastSymbolMap();
     cas_cleanup();
     static char
-        buf[sizeof(unsigned long) * 2 + 1]; // use data section instead of stack
+        buf[sizeof(unsigned long) * 2 + 1]; // use bss section instead of stack
     ultohexstr(static_cast<unsigned long>(exit_code), buf);
     buf[sizeof(buf) - 1] = '\0';
     return GUI_DisplayMessageBox_Internal(0, "run.bin", "return", buf, 0,
@@ -89,16 +67,36 @@ extern "C" void *setup() {
   setupEnvironment();
   __libc_init_array();
   int ret;
+  try {
+    try {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-  ret = main();
+      ret = main();
 #pragma GCC diagnostic pop
+    } catch (const std::exception &e) {
+      Debug_Printf(5, 3, true, 0, "%s", e.what());
+      throw;
+    }
+  } catch (...) {
+    int index = 0;
+    _Unwind_Backtrace([](_Unwind_Context *context, void *ctx) {
+      const auto ip = reinterpret_cast<void *>(_Unwind_GetIP(context));
+      auto &index = *static_cast<int *>(ctx);
+      Debug_Printf(5, index + 4, true, 0, "%i %p\n", index, ip);
+      if (index++ > 20)
+        return _URC_NORMAL_STOP;
+      return _URC_NO_REASON;
+    }, &index);
+    LCD_Refresh();
+    Debug_WaitKey();
+    ret = EXIT_FAILURE;
+  }
   exit(ret);
 }
 
 extern "C" void _exit_address(int status) __asm__("__exit_address")
     __attribute__((noreturn));
-extern "C" void _exit_address(int status) {
+extern "C" void _exit_address(const int status) {
   exit_code = status;
   longjmp(jump_buffer, 1);
 }

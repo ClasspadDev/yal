@@ -14,7 +14,7 @@ extern char end;
 #define end_address ((void *)&end)
 #define length ((uintptr_t)end_address - (uintptr_t)run_address)
 
-#define early_(fun) typeof(&(fun)) early_##fun = (typeof(&(fun)))((uintptr_t)(fun) + (diff));
+#define early_(fun) auto early_##fun = (typeof(&(fun)))((uintptr_t)(fun) + (diff));
 
 void label(); // do NOT call
 
@@ -35,7 +35,7 @@ void *start() {
   pcrel_label_address = nullptr;
   #endif
   size_t diff = (uintptr_t)pcrel_label_address - (uintptr_t)&label;
-  void *load_address = (void *)((uintptr_t)run_address + diff);
+  auto load_address = (void *)((uintptr_t)run_address + diff);
 
   early_(memcpy);
   early_(fix_pc);

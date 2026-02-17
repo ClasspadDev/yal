@@ -12,8 +12,8 @@ public:
            std::unique_ptr<const std::uint8_t[]> desc, std::size_t size_name,
            std::size_t size_desc, Elf32_Word type);
 
-  std::span<const char> getName() const;
-  std::span<const std::uint8_t> getDesc() const;
+  [[nodiscard]] std::span<const char> getName() const;
+  [[nodiscard]] std::span<const std::uint8_t> getDesc() const;
   const Elf32_Word type;
 
 private:
