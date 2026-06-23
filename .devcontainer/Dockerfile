@@ -1,4 +1,4 @@
-FROM ghcr.io/classpaddev/hollyhock-3:v2.2.2 AS toolchain
+FROM ghcr.io/qbos07/hollyhock-3:gcc16 AS toolchain
 
 FROM mcr.microsoft.com/devcontainers/base:debian13 AS base
 
