@@ -6,6 +6,7 @@ void *setup();
 void *start() __attribute__((section(".bootup")));
 
 static void fix_pc(size_t diff) __attribute__((noinline));
+static inline void invalidate_cache(void *start, size_t length) __attribute__((always_inline));
 
 extern char _executable_start;
 extern char end;
@@ -42,6 +43,7 @@ void *start() {
 
   //copy up to load (includes us); only works if load_address >= run_address
   early_memcpy(run_address, load_address, diff > length ? length : diff);
+  invalidate_cache(load_address, diff > length ? length : diff);
 
   //fixup pc
   early_fix_pc(diff);
@@ -53,16 +55,20 @@ void *start() {
       if ((uintptr_t)early_memmove <= (uintptr_t)end_address) { // do we need to override early_memmove?
         //copy up to early_memove (includes memmove if diff >= sizeof(memmove))
         early_memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff), (uintptr_t)memmove - (uintptr_t)run_address);
+        invalidate_cache(load_address, (uintptr_t)memmove - (uintptr_t)run_address);
 
         //copy rest
         memmove((void *)(uintptr_t)early_memmove, (void *)((uintptr_t)early_memmove + (uintptr_t)diff), length - (((uintptr_t)memmove - (uintptr_t)run_address) + diff));
+        invalidate_cache((void *)(uintptr_t)early_memmove, length - (((uintptr_t)memmove - (uintptr_t)run_address) + diff));
       } else {
         //copy rest
         early_memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff), length - diff);
+        invalidate_cache(load_address, length - diff);
       }
     } else {
       //copy rest
       memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff), length - diff);
+      invalidate_cache(load_address, length - diff);
     }
   }
   return setup();
@@ -74,4 +80,11 @@ static void fix_pc(size_t diff) { // make sure this is noinline
   return_pointer -= diff;
   __asm__ __volatile__ ("lds %0,pr" : : "r" (return_pointer));
   // return will activate the change
+}
+
+static inline void invalidate_cache(void *start, size_t l) {
+  for(auto ptr = (uintptr_t)run_address; ptr < (uintptr_t)start + l; ptr += 32) {
+    __asm__ volatile ("ocbwb @%0" : : "r" (ptr));
+    __asm__ volatile ("icbi @%0" : : "r" (ptr));
+  }
 }
