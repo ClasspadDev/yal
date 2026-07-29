@@ -48,7 +48,7 @@ void do_override() {
   if (!check_safe_guard(guard))
     throw std::runtime_error("Invalid guard");
 
-  const unsigned long size = file_size - (guard_len + 1) + addresses_size;
+  const auto size = file_size - (guard_len + 1) + addresses_size;
   const auto buf = new uint8_t[size];
   if (!buf)
     throw std::runtime_error("Failed to allocate override");
@@ -71,7 +71,7 @@ void do_override() {
   }
   {
     char cbuf[sizeof(std::size_t) * 2 + 1];
-    ultohexstr(reinterpret_cast<std::size_t>(buf), cbuf);
+    ultohexstr(size, cbuf);
     cbuf[sizeof(cbuf) - 1] = '\0';
     setenv("HHK_SYMBOL_TABLE_LEN", cbuf, 1);
   }
