@@ -27,33 +27,35 @@ void do_override() {
   const auto path = "\\fls0\\addresses."s +
                     reinterpret_cast<const char *>(addresses) + ".override";
 
-  const auto file = std::fopen(path.c_str(), "rb");
+  const auto file = std::unique_ptr<std::FILE, void(*)(std::FILE *)>(std::fopen(path.c_str(), "rb"), [](std::FILE *const file) {
+    if (!file)
+      return;
+    if (std::fclose(file) != 0)
+      throw std::runtime_error("Failed to close override");
+  });
   if (!file)
     return;
 
-  if (std::fseek(file, 0, SEEK_END) != 0)
+  if (std::fseek(file.get(), 0, SEEK_END) != 0)
     throw std::runtime_error("Failed to seek to end of override");
-  const auto file_size = std::ftell(file);
-  if (std::fseek(file, 0, SEEK_SET) != 0)
+  const auto file_size = std::ftell(file.get());
+  if (std::fseek(file.get(), 0, SEEK_SET) != 0)
     throw std::runtime_error("Failed to seek to start of override");
 
-  const auto guard = static_cast<char *>(alloca(guard_len));
-  if (std::fread(guard, sizeof(char) * guard_len, 1, file) != 1)
+  const auto guard = static_cast<char *>(alloca(guard_len + 1));
+  if (std::fread(guard, sizeof(char) * (guard_len + 1), 1, file.get()) != 1)
     throw std::runtime_error("Failed to read guard");
   if (!check_safe_guard(guard))
     throw std::runtime_error("Invalid guard");
 
-  const unsigned long size = file_size - guard_len + addresses_size;
+  const unsigned long size = file_size - (guard_len + 1) + addresses_size;
   const auto buf = new uint8_t[size];
   if (!buf)
     throw std::runtime_error("Failed to allocate override");
   std::memcpy(buf, addresses, addresses_size);
 
-  if (std::fread(buf + addresses_size, file_size - guard_len, 1, file) != 1)
+  if (std::fread(buf + addresses_size, size - addresses_size, 1, file.get()) != 1)
     throw std::runtime_error("Failed to read override");
-
-  if (std::fclose(file) != 0)
-    throw std::runtime_error("Failed to close override");
 
   if (!relink_sdk(buf, size))
     throw std::runtime_error("Failed to relink sdk");

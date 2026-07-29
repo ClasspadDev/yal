@@ -1,0 +1,18 @@
+#pragma endian big
+import std.mem;
+import std.string;
+import type.base;
+
+using cstr = std::string::NullString;
+
+struct Entry {
+    cstr name [[color("FF0000")]];
+    type::Hex<u32> ptr [[color("00FF00")]];
+};
+
+struct Data {
+    cstr safeGuard [[color("0000FF")]];
+    Entry entrys[while(!std::mem::eof())] [[inline]];
+};
+
+Data data @ 0 [[inline]];
