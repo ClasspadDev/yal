@@ -1,4 +1,5 @@
 // for setenv from <stdlib.h>
+#include <functional>
 #define _POSIX_C_SOURCE 200112L
 #include "addresses.h"
 #include "gui.hpp"
@@ -27,12 +28,13 @@ void do_override() {
   const auto path = "\\fls0\\addresses."s +
                     reinterpret_cast<const char *>(addresses) + ".override";
 
-  const auto file = std::unique_ptr<std::FILE, void(*)(std::FILE *)>(std::fopen(path.c_str(), "rb"), [](std::FILE *const file) {
-    if (!file)
-      return;
-    if (std::fclose(file) != 0)
-      throw std::runtime_error("Failed to close override");
-  });
+  const auto file = std::unique_ptr<std::FILE, void (*)(std::FILE *)>(
+      std::fopen(path.c_str(), "rb"), [](std::FILE *const file) {
+        if (!file)
+          return;
+        if (std::fclose(file) != 0)
+          throw std::runtime_error("Failed to close override");
+      });
   if (!file)
     return;
 
@@ -54,7 +56,8 @@ void do_override() {
     throw std::runtime_error("Failed to allocate override");
   std::memcpy(buf, addresses, addresses_size);
 
-  if (std::fread(buf + addresses_size, size - addresses_size, 1, file.get()) != 1)
+  if (std::fread(buf + addresses_size, size - addresses_size, 1, file.get()) !=
+      1)
     throw std::runtime_error("Failed to read override");
 
   if (!relink_sdk(buf, size))
@@ -87,6 +90,9 @@ int main() {
                     "2017.0512.1515") == 0) // 2000 aka original hhk2
       discover<BinaryLoader>::run(list);
     discover<ELFLoader>::run(list);
+    list.sort([](const auto &a, const auto &b) {
+      return std::strcmp(a->getPath().get(), b->getPath().get()) < 0;
+    });
     chosen = do_gui(list);
   }
 

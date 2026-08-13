@@ -1,12 +1,13 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 void *setup();
 void *start() __attribute__((section(".bootup")));
 
 static void fix_pc(size_t diff) __attribute__((noinline));
-static inline void invalidate_cache(void *start, size_t length) __attribute__((always_inline));
+static inline void invalidate_cache(void *start, size_t length)
+    __attribute__((always_inline));
 
 extern char _executable_start;
 extern char end;
@@ -15,59 +16,71 @@ extern char end;
 #define end_address ((void *)&end)
 #define length ((uintptr_t)end_address - (uintptr_t)run_address)
 
-#define early_(fun) auto early_##fun = (typeof(&(fun)))((uintptr_t)(fun) + (diff));
+#define early_(fun)                                                            \
+  auto early_##fun = (typeof(&(fun)))((uintptr_t)(fun) + (diff));
 
 void label(); // do NOT call
 
 void *start() {
   void *pcrel_label_address;
-  #ifndef __clang__
-  __asm__ (
-    ".balign 4\n\t"
-    "mova %cc1,r0\n\t"
-    ".balign 4\n"
-    "%cc1:\n\t"
-    "mov%M0 r0,%0"
-    : "=rm" (pcrel_label_address)
-    : ":" (label) // clangd doesnt know this
-    : "r0"
+#ifndef __clang__
+  __asm__(".balign 4\n\t"
+          "mova %cc1,r0\n\t"
+          ".balign 4\n"
+          "%cc1:\n\t"
+          : "=z"(pcrel_label_address)
+          : ":"(label) // clangd doesnt know this
   );
-  #else
+#else
   pcrel_label_address = nullptr;
-  #endif
+#endif
   size_t diff = (uintptr_t)pcrel_label_address - (uintptr_t)&label;
   auto load_address = (void *)((uintptr_t)run_address + diff);
 
   early_(memcpy);
   early_(fix_pc);
 
-  //copy up to load (includes us); only works if load_address >= run_address
+  // copy up to load (includes us); only works if load_address >= run_address
   early_memcpy(run_address, load_address, diff > length ? length : diff);
   invalidate_cache(load_address, diff > length ? length : diff);
 
-  //fixup pc
+  // fixup pc
   early_fix_pc(diff);
 
   if ((uintptr_t)end_address > (uintptr_t)load_address) {
-    if ((uintptr_t)memmove >= (uintptr_t)load_address - 256) {  // we can not know the size of memmove; approximate with room
+    if ((uintptr_t)memmove >=
+        (uintptr_t)load_address -
+            256) { // we can not know the size of memmove; approximate with room
       early_(memmove);
 
-      if ((uintptr_t)early_memmove <= (uintptr_t)end_address) { // do we need to override early_memmove?
-        //copy up to early_memove (includes memmove if diff >= sizeof(memmove))
-        early_memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff), (uintptr_t)memmove - (uintptr_t)run_address);
-        invalidate_cache(load_address, (uintptr_t)memmove - (uintptr_t)run_address);
+      if ((uintptr_t)early_memmove <=
+          (uintptr_t)end_address) { // do we need to override early_memmove?
+        // copy up to early_memove (includes memmove if diff >= sizeof(memmove))
+        early_memmove(load_address,
+                      (void *)((uintptr_t)load_address + (uintptr_t)diff),
+                      (uintptr_t)memmove - (uintptr_t)run_address);
+        invalidate_cache(load_address,
+                         (uintptr_t)memmove - (uintptr_t)run_address);
 
-        //copy rest
-        memmove((void *)(uintptr_t)early_memmove, (void *)((uintptr_t)early_memmove + (uintptr_t)diff), length - (((uintptr_t)memmove - (uintptr_t)run_address) + diff));
-        invalidate_cache((void *)(uintptr_t)early_memmove, length - (((uintptr_t)memmove - (uintptr_t)run_address) + diff));
+        // copy rest
+        memmove((void *)(uintptr_t)early_memmove,
+                (void *)((uintptr_t)early_memmove + (uintptr_t)diff),
+                length -
+                    (((uintptr_t)memmove - (uintptr_t)run_address) + diff));
+        invalidate_cache(
+            (void *)(uintptr_t)early_memmove,
+            length - (((uintptr_t)memmove - (uintptr_t)run_address) + diff));
       } else {
-        //copy rest
-        early_memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff), length - diff);
+        // copy rest
+        early_memmove(load_address,
+                      (void *)((uintptr_t)load_address + (uintptr_t)diff),
+                      length - diff);
         invalidate_cache(load_address, length - diff);
       }
     } else {
-      //copy rest
-      memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff), length - diff);
+      // copy rest
+      memmove(load_address, (void *)((uintptr_t)load_address + (uintptr_t)diff),
+              length - diff);
       invalidate_cache(load_address, length - diff);
     }
   }
@@ -76,15 +89,16 @@ void *start() {
 
 static void fix_pc(size_t diff) { // make sure this is noinline
   uintptr_t return_pointer;
-  __asm__ ("sts pr,%0" : "=r" (return_pointer));
+  __asm__("sts pr,%0" : "=r"(return_pointer));
   return_pointer -= diff;
-  __asm__ __volatile__ ("lds %0,pr" : : "r" (return_pointer));
+  __asm__ __volatile__("lds %0,pr" : : "r"(return_pointer));
   // return will activate the change
 }
 
 static inline void invalidate_cache(void *start, size_t l) {
-  for(auto ptr = (uintptr_t)run_address; ptr < (uintptr_t)start + l; ptr += 32) {
-    __asm__ volatile ("ocbwb @%0" : : "r" (ptr));
-    __asm__ volatile ("icbi @%0" : : "r" (ptr));
+  for (auto ptr = (uintptr_t)run_address; ptr < (uintptr_t)start + l;
+       ptr += 32) {
+    __asm__ volatile("ocbwb @%0" : : "r"(ptr));
+    __asm__ volatile("icbi @%0" : : "r"(ptr));
   }
 }

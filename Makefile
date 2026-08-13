@@ -1,3 +1,4 @@
+MAKEFLAGS = rR
 
 GFXLIB:=ugfx
 include $(GFXLIB)/gfx.mk
@@ -119,9 +120,8 @@ $(BUILDDIR)/addresses.%.o: $(SOURCEDIR)/addresses.template.c $(BUILDDIR)/address
 	$(CC) -c $< -o $@ $(CC_FLAGS) --embed-dir=$(BUILDDIR) -D PREP_FILE=\<$(@:$(BUILDDIR)/addresses.%.o=addresses.%.prep)\>
 
 #clangd gets confused on these flags
-compile_commands.json:
-	$(MAKE) $(MAKEFLAGS) clean
-	bear --output $@.tmp -- sh -c "$(MAKE) $(MAKEFLAGS) --keep-going all || exit 0"
+compile_commands.json: clean
+	bear --output $@.tmp -- sh -c "$(MAKE) --keep-going all || exit 0"
 	#sed -i 's/-m4a-nofpu//' compile_commands.json.tmp
 	mv compile_commands.json.tmp compile_commands.json
 
