@@ -1,6 +1,6 @@
-// for setenv from <stdlib.h>
-#include <functional>
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200112L // for setenv
+#include <stdlib.h>
+
 #include "addresses.h"
 #include "gui.hpp"
 #include "impl.hpp"
@@ -15,6 +15,8 @@
 #include <cstring>
 #include <memory>
 #include <sdk/calc/calc.h>
+#include <sdk/os/usb.h>
+#include <sdk/os/misc.h>
 #include <stdexcept>
 #include <string>
 
@@ -80,10 +82,57 @@ void do_override() {
   }
 }
 
+short read_bin(void *out, size_t sz) {
+    /* KEYSC register holding row #0, which is the AC key */
+    auto KEYSC_KIUDATA0 = reinterpret_cast<volatile const std::uint16_t *>(0xa44b0000);
+    
+    while (USB_PollRX() == 0) {
+        ETMU_Sleep(25);
+        if (*KEYSC_KIUDATA0 == 1)
+            return -1;
+    }
+    short count = 0;
+    USB_Read(out, sz, &count);
+    return count;
+}
+
 int main() {
   do_override();
 
+  bool usb_connected = (*reinterpret_cast<const std::uint8_t *>(0xA4050162) & 2);
+  std::unique_ptr<std::byte[]> memstorage = nullptr;
   std::unique_ptr<Executable> chosen;
+  
+  if (usb_connected) {
+    int status;
+    do {
+        status = USB_Open(0x20);
+        if (status == 10){
+          USB_ForceClose(true);
+          usb_connected = false;
+          break;
+        }
+    } while (status == 5);
+  }
+  if (usb_connected) {
+    USB_ClearRX();
+    constexpr char handshake[] = "USB loader ready";
+    USB_Write(handshake, sizeof(handshake));
+
+    size_t file_size;
+    read_bin(&file_size, sizeof(file_size));
+
+    memstorage = decltype(memstorage)(new decltype(memstorage)::element_type[file_size]);
+
+    for (size_t offset = 0, next = 0x100; offset < file_size; offset = next, next += 0x100) {
+      const auto size = next > file_size ? next - file_size : 0x100;
+      read_bin(memstorage.get() + offset, size);
+    }
+    USB_ForceClose(true);
+
+    chosen = std::make_unique<ELFLoader>(memstorage.get(), file_size, "\\usb\\memfile.hh3");
+  }
+  else
   {
     std::forward_list<std::unique_ptr<Executable>> list;
     if (std::strcmp(reinterpret_cast<const char *>(addresses),

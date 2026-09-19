@@ -49,6 +49,8 @@ public:
           return uptr;
         }()),
         file(this->path.get(), "rb") {}
+  explicit FileBasedExecutable(void * memory, size_t size, const char *display_path)
+      : path(display_path), file(memory, size, "rb") {}
   std::unique_ptr<char[]> getPath() override {
     const auto len = std::char_traits<char>::length(path.get()) + 1;
     auto path = std::make_unique<char[]>(len);
