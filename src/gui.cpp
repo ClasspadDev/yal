@@ -31,8 +31,8 @@ static short read_bin(void *const out, const short sz) {
     short count = 0;
     while (count < sz) {
       while (USB_PollRX() == 0) {
-          //gfxSleepMilliseconds(25);
-          ETMU_Sleep(25);
+          gfxSleepMilliseconds(25);
+          //ETMU_Sleep(25);
           if (*KEYSC_KIUDATA0 == 1 || !usb_connected())
               return -1;
       }
@@ -88,12 +88,20 @@ static gThreadreturn usb_thread(void *param) {
 
       params.ret = std::make_unique<ELFLoader>(params.memstorage.get(), file_size, "\\usb\\memfile.hh3");
      
-      for(GSourceListener *listerner = nullptr; (listerner = geventGetSourceListener(usb_event_source_handle, listerner));) {
-        auto buffer = geventGetEventBuffer(listerner);
-        if (!buffer) continue;
-        buffer->type = USB_LOADED;
-        geventSendEvent(listerner);
-      }
+      bool events_done = true;
+      do {
+        for(GSourceListener *listerner = nullptr; (listerner = geventGetSourceListener(usb_event_source_handle, listerner));) {
+          if (listerner->srcflags) continue;
+          auto buffer = geventGetEventBuffer(listerner);
+          if (!buffer) {
+            events_done = false;
+            continue;
+          };
+          listerner->srcflags = 1;
+          buffer->type = USB_LOADED;
+          geventSendEvent(listerner);
+        }
+      } while (!events_done);
       return 0;
     }
 
@@ -107,6 +115,9 @@ std::unique_ptr<Executable>
 do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list, std::unique_ptr<std::byte[]> &memstorage) {
   gfxInit();
   usb_thread_params usb_params = {false, memstorage, nullptr};
+  GListener listener;
+  geventListenerInit(&listener);
+  geventAttachSource(&listener, usb_event_source_handle, 0);
   auto usb = gfxThreadCreate(nullptr, 1024, gThreadpriorityNormal, usb_thread, &usb_params);
   const auto font = gdispOpenFont("*");
   gwinSetDefaultFont(font);
@@ -182,10 +193,6 @@ do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list, std::uni
   init.g.height = screen_height - (init.g.y - border);
   init.text = nullptr;
   const auto label_description = gwinLabelCreate(nullptr, &init);
-
-  GListener listener;
-  geventListenerInit(&listener);
-  geventAttachSource(&listener, usb_event_source_handle, 0);
   gwinAttachListener(&listener);
 
   while (true) {
