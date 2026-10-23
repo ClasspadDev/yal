@@ -4,6 +4,7 @@
 #include "LazyFile.hpp"
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <forward_list>
 #include <memory>
 #include <new>
@@ -85,29 +86,31 @@ struct discover<T> {
                               filename.data() + prefix_len, &findInfo);
 
     while (ret >= FILE_OK) {
-      if (findInfo.type != File_FindInfo::EntryTypeFile) {
-        continue;
-      }
-      if (filename.data()[prefix_len] == '.') {
-        continue;
-      }
-      std::unique_ptr<T> ptr(static_cast<T*>(::operator new(sizeof(T))));
-      try {
-        new (ptr.get()) T(filename.data());
-      } catch (const std::exception &e) {
-        auto len =
-            std::char_traits<char_const16_t>::length(filename.data()) + 1;
-        auto uptr = std::make_unique<char[]>(len);
-        std::copy_n(filename.data(), len, uptr.get());
-        Debug_Printf(1, 3, false, 0, "Error processing file \"%s\"",
-                     uptr.get());
-        Debug_Printf(1, 5, false, 0, "%s", e.what());
-        Debug_Printf(3, 8, false, 0, "Press any key to continue");
-        LCD_Refresh();
-        Debug_WaitKey();
-        continue;
-      }
-      list.emplace_front(std::move(ptr));
+      do {
+        if (findInfo.type != File_FindInfo::EntryTypeFile) {
+          continue;
+        }
+        if (filename[prefix_len] == '.') {
+          continue;
+        }
+        std::unique_ptr<T> ptr;
+        try {
+          ptr = std::make_unique<T>(filename.data());
+        } catch (const std::exception &e) {
+          auto len =
+              std::char_traits<char_const16_t>::length(filename.data()) + 1;
+          auto uptr = std::make_unique<char[]>(len);
+          std::copy_n(filename.data(), len, uptr.get());
+          Debug_Printf(1, 3, false, 0, "Error processing file \"%s\"",
+                       uptr.get());
+          Debug_Printf(1, 5, false, 0, "%s", e.what());
+          Debug_Printf(3, 8, false, 0, "Press any key to continue");
+          LCD_Refresh();
+          Debug_WaitKey();
+          continue;
+        }
+        list.emplace_front(std::move(ptr));
+      } while (false);
       ret = File_FindNext(findHandle, filename.data() + prefix_len, &findInfo);
     }
     File_FindClose(findHandle);
