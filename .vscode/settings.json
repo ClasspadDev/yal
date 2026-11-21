@@ -2,5 +2,7 @@
     "clangd.arguments": [
         "--query-driver=/toolchain/bin/sh4a_nofpueb-elf-*"
     ],
-    "clangd.path": "clangd-19"
+    "clangd.path": "clangd-19",
+    "makefile.configureOnOpen": false,
+    "C_Cpp.intelliSenseEngine": "disabled"
 }

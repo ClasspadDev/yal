@@ -30,14 +30,15 @@ static short read_bin(void *const out, const short sz) {
     
     short count = 0;
     while (count < sz) {
-      while (USB_PollRX() == 0) {
+      int avaiable = 0;
+      while ((avaiable = USB_PollRX()) == 0) {
           gfxSleepMilliseconds(25);
           //ETMU_Sleep(25);
           if (*KEYSC_KIUDATA0 == 1 || !usb_connected())
               return -1;
       }
       short read = 0;
-      USB_Read(out, std::min(USB_PollRX(), sz - count), &read);
+      USB_Read(static_cast<std::byte *>(out) + count, std::min(avaiable, sz - count), &read);
       count += read;
     }
     return count;
@@ -73,8 +74,8 @@ static gThreadreturn usb_thread(void *param) {
       params.memstorage = std::unique_ptr<std::byte[]>(new std::byte[file_size]);
 
       bool good = true;
-      for (size_t offset = 0, next = 0x100; offset < file_size; offset = next, next += 0x100) {
-        const short size = next > file_size ? next - file_size : 0x100;
+      for (size_t offset = 0; offset < file_size; offset += 0x100) {
+        const short size = std::min(0x100zu, file_size - offset);
         if(read_bin(params.memstorage.get() + offset, size) == -1) {
           good = false;
           break;

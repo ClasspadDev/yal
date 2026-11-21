@@ -8,7 +8,6 @@
                 "ms-vscode.makefile-tools",
                 "ms-vscode.cpptools-themes",
                 "ms-vscode.cpptools",
-                "xaver.clang-format",
                 "llvm-vs-code-extensions.vscode-clangd",
                 "ZixuanWang.linkerscript",
                 "ms-azuretools.vscode-docker",
