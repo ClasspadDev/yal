@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <forward_list>
 #include <memory>
-#include <new>
 #include <sdk/os/debug.h>
 #include <sdk/os/bfile.h>
 #include <sdk/os/lcd.h>
@@ -41,14 +40,13 @@ protected:
   LazyFile file;
 
 public:
-  template <typename CharT>
-  explicit FileBasedExecutable(const CharT *path)
+  explicit FileBasedExecutable(const char *path)
       : path([path] {
-          auto len = std::char_traits<CharT>::length(path) + 1;
-          auto uptr = std::make_unique<char[]>(len);
-          std::copy_n(path, len, uptr.get());
-          return uptr;
-        }()),
+        const auto len = std::char_traits<char>::length(path) + 1;
+        auto ptr = std::make_unique_for_overwrite<char[]>(len);
+        std::copy_n(path, len, ptr.get());
+        return ptr;
+      }()),
         file(this->path.get(), "rb") {}
   explicit FileBasedExecutable(void * memory, size_t size, const char *display_path)
       : path(display_path), file(memory, size, "rb") {}
@@ -95,14 +93,14 @@ struct discover<T> {
         if (filename[prefix_len] == '.') {
           continue;
         }
+        auto len =
+            std::char_traits<char_const16_t>::length(filename.data()) + 1;
+        auto uptr = std::make_unique<char[]>(len * 2);
+        SMEM_BFilePathToFuguePath(filename.data(), uptr.get());
         std::unique_ptr<T> ptr;
         try {
-          ptr = std::make_unique<T>(filename.data());
+          ptr = std::make_unique<T>(uptr.get());
         } catch (const std::exception &e) {
-          auto len =
-              std::char_traits<char_const16_t>::length(filename.data()) + 1;
-          auto uptr = std::make_unique<char[]>(len);
-          std::copy_n(filename.data(), len, uptr.get());
           Debug_Printf(1, 3, false, 0, "Error processing file \"%s\"",
                        uptr.get());
           Debug_Printf(1, 5, false, 0, "%s", e.what());
