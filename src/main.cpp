@@ -1,6 +1,6 @@
-// for setenv from <stdlib.h>
-#include <functional>
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200112L // for setenv
+#include <stdlib.h>
+
 #include "addresses.h"
 #include "gui.hpp"
 #include "impl.hpp"
@@ -83,7 +83,9 @@ void do_override() {
 int main() {
   do_override();
 
+  std::unique_ptr<std::byte[]> memstorage = nullptr;
   std::unique_ptr<Executable> chosen;
+  
   {
     std::forward_list<std::unique_ptr<Executable>> list;
     if (std::strcmp(reinterpret_cast<const char *>(addresses),
@@ -93,7 +95,7 @@ int main() {
     list.sort([](const auto &a, const auto &b) {
       return std::strcmp(a->getPath().get(), b->getPath().get()) < 0;
     });
-    chosen = do_gui(list);
+    chosen = do_gui(list, memstorage);
   }
 
   if (!chosen)

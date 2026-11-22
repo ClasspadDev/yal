@@ -1,5 +1,6 @@
 #include "loader.hpp"
 #include <cstdio>
+#include <cstdint>
 
 void BinaryLoader::load() {
   const auto shared = file.acquire();

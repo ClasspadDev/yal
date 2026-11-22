@@ -7,9 +7,8 @@
 #include <cstddef>
 #include <forward_list>
 #include <memory>
-#include <new>
 #include <sdk/os/debug.h>
-#include <sdk/os/file.h>
+#include <sdk/os/bfile.h>
 #include <sdk/os/lcd.h>
 #include <string>
 #include <type_traits>
@@ -41,15 +40,16 @@ protected:
   LazyFile file;
 
 public:
-  template <typename CharT>
-  explicit FileBasedExecutable(const CharT *path)
+  explicit FileBasedExecutable(const char *path)
       : path([path] {
-          auto len = std::char_traits<CharT>::length(path) + 1;
-          auto uptr = std::make_unique<char[]>(len);
-          std::copy_n(path, len, uptr.get());
-          return uptr;
-        }()),
+        const auto len = std::char_traits<char>::length(path) + 1;
+        auto ptr = std::make_unique_for_overwrite<char[]>(len);
+        std::copy_n(path, len, ptr.get());
+        return ptr;
+      }()),
         file(this->path.get(), "rb") {}
+  explicit FileBasedExecutable(void * memory, size_t size, const char *display_path)
+      : path(display_path), file(memory, size, "rb") {}
   std::unique_ptr<char[]> getPath() override {
     const auto len = std::char_traits<char>::length(path.get()) + 1;
     auto path = std::make_unique<char[]>(len);
@@ -66,7 +66,7 @@ template <typename T>
 struct discover<T> {
   static void run(std::forward_list<std::unique_ptr<Executable>> &list) {
     int findHandle = 0;
-    File_FindInfo findInfo{};
+    BFile_FindInfo findInfo{};
     constexpr auto prefix = "\\fls0\\";
     constexpr auto prefix_len = std::char_traits<char>::length(prefix);
     constexpr auto pattern = ([prefix, prefix_len] {
@@ -82,25 +82,25 @@ struct discover<T> {
       return arr;
     })();
 
-    auto ret = File_FindFirst(pattern.data(), &findHandle,
+    auto ret = BFile_FindFirst(pattern.data(), &findHandle,
                               filename.data() + prefix_len, &findInfo);
 
-    while (ret >= FILE_OK) {
+    while (ret >= BFILE_OK) {
       do {
-        if (findInfo.type != File_FindInfo::EntryTypeFile) {
+        if (findInfo.type != BFile_EntryType::BFILE_FILE) {
           continue;
         }
         if (filename[prefix_len] == '.') {
           continue;
         }
+        auto len =
+            std::char_traits<char_const16_t>::length(filename.data()) + 1;
+        auto uptr = std::make_unique<char[]>(len * 2);
+        SMEM_BFilePathToFuguePath(filename.data(), uptr.get());
         std::unique_ptr<T> ptr;
         try {
-          ptr = std::make_unique<T>(filename.data());
+          ptr = std::make_unique<T>(uptr.get());
         } catch (const std::exception &e) {
-          auto len =
-              std::char_traits<char_const16_t>::length(filename.data()) + 1;
-          auto uptr = std::make_unique<char[]>(len);
-          std::copy_n(filename.data(), len, uptr.get());
           Debug_Printf(1, 3, false, 0, "Error processing file \"%s\"",
                        uptr.get());
           Debug_Printf(1, 5, false, 0, "%s", e.what());
@@ -111,9 +111,9 @@ struct discover<T> {
         }
         list.emplace_front(std::move(ptr));
       } while (false);
-      ret = File_FindNext(findHandle, filename.data() + prefix_len, &findInfo);
+      ret = BFile_FindNext(findHandle, filename.data() + prefix_len, &findInfo);
     }
-    File_FindClose(findHandle);
+    BFile_FindClose(findHandle);
   }
   discover() = delete;
 };

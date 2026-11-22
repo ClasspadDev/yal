@@ -6,7 +6,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "make",
+            "command": "make -j",
             "problemMatcher": [
                 "$gcc"
             ],
@@ -25,7 +25,7 @@
         {
             "label": "compile commands",
             "type": "shell",
-            "command": "make compile_commands.json",
+            "command": "make -j compile_commands.json",
             "problemMatcher": [],
             "group": "build"
         }

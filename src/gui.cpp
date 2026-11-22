@@ -1,15 +1,122 @@
 #include "gui.hpp"
 
 #include "gfx.h"
+#include "loaders/elf/loader.hpp"
 #include "loaders/interface.hpp"
+#include <algorithm>
 #include <forward_list>
 #include <map>
 #include <memory>
 #include <utility>
+#include <sdk/os/usb.h>
+#include <sdk/os/misc.h>
+
+struct usb_thread_params {
+  bool exit;
+  std::unique_ptr<std::byte[]> &memstorage;
+  std::unique_ptr<Executable> ret;
+};
+
+static bool usb_connected() {
+  return (*reinterpret_cast<const std::uint8_t *>(0xA4050162) & 2);
+}
+static bool clear_pressed() {
+  return (*reinterpret_cast<volatile const std::uint16_t *>(0xa44b0000) == 1);
+}
+
+static const GSourceHandle usb_event_source_handle = reinterpret_cast<GSourceHandle>(usb_connected);
+constexpr auto USB_LOADED = GEVENT_USER_FIRST;
+
+static gThreadreturn usb_thread(void *param) {
+  auto &params = *reinterpret_cast<usb_thread_params *>(param);
+
+  auto read_bin = [&params](void *data, size_t size){
+    bool good = true;
+      for (size_t offset = 0; offset < size;) {
+        size_t avaiable;
+        while ((avaiable = USB_PollRX()) == 0) {
+          if (clear_pressed() || !usb_connected() || params.exit) {
+            good = false;
+            break;
+          }
+          gfxSleepMilliseconds(25);
+        }
+        if (!good) break;
+        uint16_t count = 0;
+        const auto bytes = std::min(std::min(avaiable, size - offset), 0x2000zu);
+        USB_Read(static_cast<std::byte *>(data) + offset, bytes, &count);
+        offset += count;
+      }
+    return good;
+  };
+
+  while (!params.exit) {
+    bool usb_status = usb_connected();
+    
+    if (usb_status) {
+      int status;
+      do {
+          status = USB_Open(0x20);
+          if (status == 10){
+            USB_ForceClose(true);
+            usb_status = false;
+            break;
+          }
+      } while (status == 5);
+    }
+    if (usb_status) {
+      USB_ClearRX();
+      constexpr char handshake[] = "USB loader ready";
+      USB_Write(handshake, sizeof(handshake));
+
+      size_t file_size;
+      if(!read_bin(&file_size, sizeof(file_size))) {
+        USB_ForceClose(true);
+        continue;
+      }
+      params.memstorage = std::unique_ptr<std::byte[]>(new std::byte[file_size]);
+
+      if(!read_bin(params.memstorage.get(), file_size)) {
+        USB_ForceClose(true);
+        params.memstorage = nullptr;
+        continue;
+      };
+      USB_ForceClose(true);
+
+      params.ret = std::make_unique<ELFLoader>(params.memstorage.get(), file_size, "\\usb\\memfile.hh3");
+     
+      bool events_done = true;
+      do {
+        for(GSourceListener *listerner = nullptr; (listerner = geventGetSourceListener(usb_event_source_handle, listerner));) {
+          if (listerner->srcflags) continue;
+          auto buffer = geventGetEventBuffer(listerner);
+          if (!buffer) {
+            events_done = false;
+            continue;
+          };
+          listerner->srcflags = 1;
+          buffer->type = USB_LOADED;
+          geventSendEvent(listerner);
+        }
+      gfxSleepMilliseconds(100);
+      } while (!events_done && !params.exit);
+      return 0;
+    }
+
+    gfxSleepMilliseconds(100);
+  }
+
+  return 0;
+}
 
 std::unique_ptr<Executable>
-do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list) {
+do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list, std::unique_ptr<std::byte[]> &memstorage) {
   gfxInit();
+  usb_thread_params usb_params = {false, memstorage, nullptr};
+  GListener listener;
+  geventListenerInit(&listener);
+  geventAttachSource(&listener, usb_event_source_handle, 0);
+  auto usb = gfxThreadCreate(nullptr, 1024, gThreadpriorityNormal, usb_thread, &usb_params);
   const auto font = gdispOpenFont("*");
   gwinSetDefaultFont(font);
   gwinSetDefaultStyle(&WhiteWidgetStyle, gFalse);
@@ -84,9 +191,6 @@ do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list) {
   init.g.height = screen_height - (init.g.y - border);
   init.text = nullptr;
   const auto label_description = gwinLabelCreate(nullptr, &init);
-
-  GListener listener;
-  geventListenerInit(&listener);
   gwinAttachListener(&listener);
 
   while (true) {
@@ -95,11 +199,17 @@ do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list) {
     case GEVENT_GWIN_BUTTON: {
       const auto button_event = reinterpret_cast<GEventGWinButton *>(event);
       if (button_event->gwin == button_exit) {
+        usb_params.exit = true;
+        gfxThreadWait(usb);
+        geventEventComplete(&listener);
         gfxDeinit();
         return nullptr;
       }
       if (button_event->gwin == button_run) {
         const auto selected = gwinListGetSelected(list_names);
+        usb_params.exit = true;
+        gfxThreadWait(usb);
+        geventEventComplete(&listener);
         gfxDeinit();
         if (selected == -1)
           return nullptr;
@@ -116,6 +226,12 @@ do_gui(std::forward_list<std::unique_ptr<Executable>> &executable_list) {
       gwinSetText(label_author, exe->getAuthor().get(), gTrue);
       gwinSetText(label_description, exe->getDescription().get(), gTrue);
     } break;
+    case USB_LOADED: {
+      gfxThreadWait(usb);
+      geventEventComplete(&listener);
+      gfxDeinit();
+      return std::move(usb_params.ret);
+    }
     default:
       break;
     }
