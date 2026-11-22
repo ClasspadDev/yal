@@ -3,7 +3,6 @@
 #include "gfx.h"
 #include "loaders/elf/loader.hpp"
 #include "loaders/interface.hpp"
-#include "src/gdisp/gdisp_colors.h"
 #include <algorithm>
 #include <forward_list>
 #include <map>
@@ -44,10 +43,10 @@ static gThreadreturn usb_thread(void *param) {
         }
         if (!good) break;
         uint16_t count = 0;
-        USB_Read(static_cast<std::byte *>(data) + offset, std::min(avaiable, size - offset), &count);
+        const auto bytes = std::min(std::min(avaiable, size - offset), 0x2000zu);
+        USB_Read(static_cast<std::byte *>(data) + offset, bytes, &count);
         offset += count;
       }
-      USB_ForceClose(true);
     return good;
   };
 
@@ -78,9 +77,11 @@ static gThreadreturn usb_thread(void *param) {
       params.memstorage = std::unique_ptr<std::byte[]>(new std::byte[file_size]);
 
       if(!read_bin(params.memstorage.get(), file_size)) {
+        USB_ForceClose(true);
         params.memstorage = nullptr;
         continue;
       };
+      USB_ForceClose(true);
 
       params.ret = std::make_unique<ELFLoader>(params.memstorage.get(), file_size, "\\usb\\memfile.hh3");
      
