@@ -9,7 +9,7 @@
 #include <memory>
 #include <new>
 #include <sdk/os/debug.h>
-#include <sdk/os/file.h>
+#include <sdk/os/bfile.h>
 #include <sdk/os/lcd.h>
 #include <string>
 #include <type_traits>
@@ -68,7 +68,7 @@ template <typename T>
 struct discover<T> {
   static void run(std::forward_list<std::unique_ptr<Executable>> &list) {
     int findHandle = 0;
-    File_FindInfo findInfo{};
+    BFile_FindInfo findInfo{};
     constexpr auto prefix = "\\fls0\\";
     constexpr auto prefix_len = std::char_traits<char>::length(prefix);
     constexpr auto pattern = ([prefix, prefix_len] {
@@ -84,12 +84,12 @@ struct discover<T> {
       return arr;
     })();
 
-    auto ret = File_FindFirst(pattern.data(), &findHandle,
+    auto ret = BFile_FindFirst(pattern.data(), &findHandle,
                               filename.data() + prefix_len, &findInfo);
 
-    while (ret >= FILE_OK) {
+    while (ret >= BFILE_OK) {
       do {
-        if (findInfo.type != File_FindInfo::EntryTypeFile) {
+        if (findInfo.type != BFile_EntryType::BFILE_FILE) {
           continue;
         }
         if (filename[prefix_len] == '.') {
@@ -113,9 +113,9 @@ struct discover<T> {
         }
         list.emplace_front(std::move(ptr));
       } while (false);
-      ret = File_FindNext(findHandle, filename.data() + prefix_len, &findInfo);
+      ret = BFile_FindNext(findHandle, filename.data() + prefix_len, &findInfo);
     }
-    File_FindClose(findHandle);
+    BFile_FindClose(findHandle);
   }
   discover() = delete;
 };

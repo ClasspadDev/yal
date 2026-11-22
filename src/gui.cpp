@@ -3,6 +3,7 @@
 #include "gfx.h"
 #include "loaders/elf/loader.hpp"
 #include "loaders/interface.hpp"
+#include "src/gdisp/gdisp_colors.h"
 #include <algorithm>
 #include <forward_list>
 #include <map>
@@ -20,32 +21,35 @@ struct usb_thread_params {
 static bool usb_connected() {
   return (*reinterpret_cast<const std::uint8_t *>(0xA4050162) & 2);
 }
+static bool clear_pressed() {
+  return (*reinterpret_cast<volatile const std::uint16_t *>(0xa44b0000) == 1);
+}
 
 static const GSourceHandle usb_event_source_handle = reinterpret_cast<GSourceHandle>(usb_connected);
 constexpr auto USB_LOADED = GEVENT_USER_FIRST;
 
-static short read_bin(void *const out, const short sz) {
-    /* KEYSC register holding row #0, which is the AC key */
-    auto KEYSC_KIUDATA0 = reinterpret_cast<volatile const std::uint16_t *>(0xa44b0000);
-    
-    short count = 0;
-    while (count < sz) {
-      int avaiable = 0;
-      while ((avaiable = USB_PollRX()) == 0) {
-          gfxSleepMilliseconds(25);
-          //ETMU_Sleep(25);
-          if (*KEYSC_KIUDATA0 == 1 || !usb_connected())
-              return -1;
-      }
-      short read = 0;
-      USB_Read(static_cast<std::byte *>(out) + count, std::min(avaiable, sz - count), &read);
-      count += read;
-    }
-    return count;
-}
-
 static gThreadreturn usb_thread(void *param) {
   auto &params = *reinterpret_cast<usb_thread_params *>(param);
+
+  auto read_bin = [&params](void *data, size_t size){
+    bool good = true;
+      for (size_t offset = 0; offset < size;) {
+        size_t avaiable;
+        while ((avaiable = USB_PollRX()) == 0) {
+          if (clear_pressed() || !usb_connected() || params.exit) {
+            good = false;
+            break;
+          }
+          gfxSleepMilliseconds(25);
+        }
+        if (!good) break;
+        uint16_t count = 0;
+        USB_Read(static_cast<std::byte *>(data) + offset, std::min(avaiable, size - offset), &count);
+        offset += count;
+      }
+      USB_ForceClose(true);
+    return good;
+  };
 
   while (!params.exit) {
     bool usb_status = usb_connected();
@@ -67,22 +71,13 @@ static gThreadreturn usb_thread(void *param) {
       USB_Write(handshake, sizeof(handshake));
 
       size_t file_size;
-      if(read_bin(&file_size, sizeof(file_size)) == -1) {
+      if(!read_bin(&file_size, sizeof(file_size))) {
         USB_ForceClose(true);
         continue;
       }
       params.memstorage = std::unique_ptr<std::byte[]>(new std::byte[file_size]);
 
-      bool good = true;
-      for (size_t offset = 0; offset < file_size; offset += 0x100) {
-        const short size = std::min(0x100zu, file_size - offset);
-        if(read_bin(params.memstorage.get() + offset, size) == -1) {
-          good = false;
-          break;
-        }
-      }
-      USB_ForceClose(true);
-      if(!good) {
+      if(!read_bin(params.memstorage.get(), file_size)) {
         params.memstorage = nullptr;
         continue;
       };
@@ -102,7 +97,8 @@ static gThreadreturn usb_thread(void *param) {
           buffer->type = USB_LOADED;
           geventSendEvent(listerner);
         }
-      } while (!events_done);
+      gfxSleepMilliseconds(100);
+      } while (!events_done && !params.exit);
       return 0;
     }
 
